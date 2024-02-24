@@ -4,12 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"text/template"
-	"text/template/parse"
 
 	"gopkg.in/yaml.v3"
 )
@@ -34,7 +31,7 @@ type MetaData struct {
 		BasePath string `yaml:"base"`
 		FileName string `yaml:"fileName"`
 	} `yaml:"path"`
-	Vars map[string]VarType `yaml:"vars"`
+	Data map[string]VarType `yaml:"data"`
 }
 
 // SavePath builds up the final save path from its component parts then passes it through the
@@ -65,27 +62,12 @@ func parseMetaData(name string, data []byte) (*MetaData, error) {
 }
 
 // extractMetaData loads the template file itself and locates then parses the metadata block
-func extractMetaData(path string) (*MetaData, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read template file: %w", err)
+func extractMetaData(path string, t *template.Template) (*MetaData, error) {
+	m := t.Lookup("meta")
+	if m == nil {
+		return nil, errors.New("meta block not found in template file")
 	}
-
-	t := template.New("")
-	t.Tree.Mode = parse.ParseComments
 
 	tplName := filepath.Base(path)
-
-	tree, err := t.Parse(string(data))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse template: %w", err)
-	}
-
-	if tree.Tree.Root.Nodes[0].Type() != parse.NodeComment {
-		return nil, errors.New("Failed to find metadata for template.\n It must be contained within a comment node at the very top of the template file")
-	}
-
-	hcl := strings.TrimPrefix(strings.TrimSuffix(tree.Tree.Root.Nodes[0].String(), "*/}}"), "{{/*")
-
-	return parseMetaData(tplName, []byte(hcl))
+	return parseMetaData(tplName, []byte(m.Tree.Root.String()))
 }

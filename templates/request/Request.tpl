@@ -2,11 +2,10 @@
 path:
     base: "src/{{ .Context }}/Application/Request"
     fileName: "{{ .Name }}Request.php"
-vars:
+data:
     name: String
     context: String
-{{ end }}
-{{ define "file" }}
+{{ end -}}
 <?php
 
 declare(strct_types=true)
@@ -18,4 +17,3 @@ use Stride\Shared\Application\BaseRequest;
 final class {{ .Name }}Request extends BaseRequest
 {
 }
-{{ end }}

@@ -2,30 +2,80 @@ package templates
 
 import (
 	"fmt"
-	"html/template"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"text/template"
+
+	"github.com/indeedhat/bob/internal/transaction"
 )
 
 type TemplateGroup []Template
 
-// Vars returns a map of all the unique vars assigned to the templates in the group
+// DataShape returns a map of all the unique vars assigned to the templates in the group
 // if any vars conflict then an error will be returned
-func (g TemplateGroup) Vars() (map[string]VarType, error) {
+func (g TemplateGroup) DataShape() (map[string]VarType, error) {
 	vars := make(map[string]VarType)
 
 	for _, t := range g {
-		for k, v := range t.Meta.Vars {
-			group, key := t.Keys()
+		group, groupKey := t.Keys()
 
+		for k, v := range t.Meta.Data {
 			if !v.IsValid() {
-				return nil, fmt.Errorf("%s:%s has invalid var type %s: %s", group, key, k, v)
+				return nil, fmt.Errorf("%s:%s has invalid var type %s: %s", group, groupKey, k, v)
 			}
 
+			varKey := ucfirst(k)
+			if val, ok := vars[varKey]; ok && val != v {
+				return nil, fmt.Errorf("%s:%s has type conflict with existing var %s: %s -> %s",
+					group,
+					groupKey,
+					k,
+					v,
+					val,
+				)
+			}
+
+			vars[varKey] = v
+		}
+	}
+
+	return vars, nil
+}
+
+type Templates map[string]TemplateGroup
+
+func (t Templates) SelectGroups(keys []string) Templates {
+	groups := make(Templates)
+
+	for _, key := range keys {
+		if group, ok := t[key]; ok {
+			groups[key] = group
+		}
+	}
+
+	return groups
+}
+
+func (t Templates) DataShape() (map[string]VarType, error) {
+	vars := make(map[string]VarType)
+
+	for groupKey, group := range t {
+		shape, err := group.DataShape()
+		if err != nil {
+			return nil, err
+		}
+
+		for k, v := range shape {
 			if val, ok := vars[k]; ok && val != v {
-				return nil, fmt.Errorf("%s:%s has type conflict with existing var %s: %s -> %s", group, key, k, v, val)
+				return nil, fmt.Errorf("%s has type conflict with existing var %s: %s -> %s",
+					groupKey,
+					k,
+					v,
+					val,
+				)
 			}
 
 			vars[k] = v
@@ -35,7 +85,34 @@ func (g TemplateGroup) Vars() (map[string]VarType, error) {
 	return vars, nil
 }
 
-type Templates map[string]TemplateGroup
+func (t Templates) MakeFiles(data map[string]any) *transaction.FileMaker {
+	maker := transaction.NewFileMaker(func(log *transaction.TaskLog[string]) {
+		for _, group := range t {
+			for _, template := range group {
+				savePath, err := template.Meta.SavePath(data)
+				if err != nil {
+					log.Add(path.Join(template.Meta.Path.BasePath, template.Meta.Path.FileName))
+					log.Failed(err)
+					continue
+				}
+
+				log.Do(savePath, func() error {
+					fh, err := os.OpenFile(savePath, os.O_CREATE|os.O_WRONLY, 0644)
+					if err != nil {
+						return err
+					}
+					defer fh.Close()
+
+					return template.Template.Execute(fh, data)
+				})
+			}
+		}
+	})
+
+	maker.Run()
+
+	return maker
+}
 
 type Template struct {
 	Meta     *MetaData
@@ -80,11 +157,11 @@ func Load(path string) (Templates, error) {
 			return err
 		}
 
-		if t.Meta, err = extractMetaData(path); err != nil {
+		if t.Template, err = template.New(filename).Funcs(tplFuncs).Parse(string(data)); err != nil {
 			return err
 		}
 
-		if t.Template, err = template.New(filename).Funcs(tplFuncs).Parse(string(data)); err != nil {
+		if t.Meta, err = extractMetaData(filename, t.Template); err != nil {
 			return err
 		}
 

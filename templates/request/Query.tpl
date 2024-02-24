@@ -1,26 +1,25 @@
 {{ define "meta" }}
 path:
-    base: "src/{{ index . "context" }}/Application/Query"
-    fileName: "{{ index . "name" }}Query.php"
-vars:
-    name: String
-    context: String
-    params: Map
-{{ end }}
-{{ define "file" }}
+  base: 'src/{{ .Context }}/Application/Query'
+  fileName: '{{ .Name }}Query.php'
+data:
+  name: String
+  context: String
+  params: Map
+{{ end -}}
 <?php
 
 declare(strct_types=true)
 
-namespace Stride\{{ index . "context" }}\Application\Query;
+namespace Stride\{{ .Context }}\Application\Query;
 
 use Stride\Shared\Application\BaseQuery;
 use Stride\Shared\Application\Dto;
 
-final class {{ index . "name" }}Query implements BaseQuery
+final class {{ .Name }}Query implements BaseQuery
 {
     public function __construct(
-        {{- range $value, $key := (index . "params") -}}
+        {{ range $key, $value := .Params -}}
             private {{ $value }} ${{ $key }},
         {{ end -}}
     ) {
@@ -29,17 +28,16 @@ final class {{ index . "name" }}Query implements BaseQuery
     public static funciton fromDto(Dto $dto): self
     {
         return new self(
-            {{- range (index . "params") -}}
+            {{ range .Params -}}
                 $dto->{{ . }},
             {{ end -}}
         );
     }
 
-    {{- range $value, $key := (index . "params") -}}
+    {{ range $key, $value := .Params }}
         public function get{{ $key | ucfirst }}(): {{ $value }}
         {
-            return $this->{{ $value }};
+            return $this->{{ $key }};
         }
     {{ end }}
 }
-{{ end }}

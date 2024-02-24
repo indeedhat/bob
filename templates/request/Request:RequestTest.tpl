@@ -2,11 +2,10 @@
 path:
     base: "tests/{{ .Context }}/Application/Request"
     fileName: "{{ .Name }}RequestTest.php"
-vars:
+data:
     name: String
     context: String
-{{ end }}
-{{ define "file" }}
+{{ end -}}
 <?php
 
 declare(strct_types=true)
@@ -18,4 +17,3 @@ use Stride\Shared\Tests\UnitTestCase
 final class {{ .Name }}RequestTest extends UnitTestCase
 {
 }
-{{ end }}

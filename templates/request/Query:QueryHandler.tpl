@@ -2,11 +2,10 @@
 path:
     base: "src/{{ .Context }}/Application/Query"
     fileName: "{{ .Name }}QueryHandler.php"
-vars:
+data:
     name: String
     context: String
-{{ end }}
-{{ define "file" }}
+{{ end -}}
 <?php
 
 declare(strct_types=true)
@@ -29,4 +28,3 @@ final class {{ .Name }}QueryHandler implements BaseQueryHandler
     {
     }
 }
-{{ end }}
